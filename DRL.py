@@ -1,6 +1,9 @@
 #nothing yet
 import xlrd
-import csv
+import os
+import re
+import nltk
+from nltk.tag import pos_tag
 
 def csv_from_excel():
     wb = xlrd.open_workbook('VDR_Index.xlsx')
