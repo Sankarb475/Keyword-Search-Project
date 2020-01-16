@@ -1,0 +1,29 @@
+We are doing it in RHEL 7
+
+-- install vim for editing files
+> yum install vim
+
+-- we have to install "tesseract" first for "pyocr" to run
+
+> yum update
+> yum install tesseract   ==> normal way of installing (if it doesnt work try this : yum install tesseract --nogpgcheck)
+
+-- we have to install "ImageMagick" 
+> yum install ImageMagick
+
+> printenv               ==> to check the current environment variables that are set
+
+
+** Installing MySQL in RHEL 7
+> yum localinstall https://dev.mysql.com/get/mysql80-community-release-el7-3.noarch.rpm
+> yum install mysql-community-server
+> yum --disablerepo=mysql80-community --enablerepo=mysql57-community install mysql-community-server
+
+-- check the running programs
+
+[root@sankarRHEL sankarrhel]# systemctl | grep sql
+  mysqld.service      loaded active running   MySQL Server
+  
+ -- for pdf2image to run we need to have poppler-utils installed
+  https://medium.com/@jakebathman/building-poppler-utils-for-centos-6-5-really-e52eccffc6ae
+  
