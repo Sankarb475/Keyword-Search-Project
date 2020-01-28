@@ -2,7 +2,7 @@
 """
 Created on Mon Jan 20 12:36:08 2020
 
-@author: sbiswas149
+@author: sbiswas149 - sankar biswas
 """
 
 import csv
@@ -13,6 +13,7 @@ import xlsxwriter
 import pandas as pd
 import openpyxl 
 from pyxlsb import open_workbook
+import numpy as np
 
 outputCol = 0
 outputRow = 1
@@ -112,54 +113,55 @@ def outputWriterRawDetail(file_name, index_number, folder_name, file_path, file_
     outputRow = outputRow + 1
     
 def sheet_handler(list_details, cell_details, path, page_count, row):
-    mm1 = [i for i in r1.findall(row) if i and isinstance(i, str)]
-    if mm1:
-        for keyword in mm1:
-            outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], page_count,
-                    keyword, "IT Spend", cell_details)
-    mm2 = [i for i in r2.findall(row) if i and isinstance(i, str)]                   
-    if mm2:
-        for keyword in mm2:
-            outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], page_count,
-                    keyword, "IT Organization / Roles", cell_details)
-    """
-    mm3 = r3.findall(row[i])
-    if mm3:
-        list_details = folderName(path)
-        cell_details = cell_header(i+1)+str(count)
-        outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], 1,
-                row[i], "IT Applications", cell_details)
-    """
-    mm4 = [i for i in r4.findall(row) if i and isinstance(i, str)]
-    if mm4:
-        for keyword in mm4:
-            print(keyword)
-            outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], page_count,
-                    keyword, "IT Infrastructure", cell_details)
-                    
-    mm5 = [i for i in r5.findall(row) if i and isinstance(i, str)]
-    if mm5:
-        for keyword in mm5:
-            outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], page_count,
-                    keyword, "IT Security and Controls", cell_details)
-                    
-    mm6 = [i for i in r6.findall(row) if i and isinstance(i, str)]
-    if mm6:
-        for keyword in mm6:
-            outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], page_count,
-                    keyword, "IT Projects", cell_details)
-                    
-    mm7 = [i for i in r7.findall(row) if i and isinstance(i, str)]
-    if mm7:
-        for keyword in mm7:
-            outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], page_count,
-                    keyword, "Target Technology Fitness Scorecard", cell_details)
-                    
-    mm8 = [i for i in r8.findall(row) if i and isinstance(i, str)]
-    if mm8:
-        for keyword in mm8:
-            outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], page_count,
-                    keyword, "Misecellaneous", cell_details)               
+    if isinstance(row, str):
+        mm1 = [i for i in r1.findall(row) if i and isinstance(i, str)]
+        if mm1:
+            for keyword in mm1:
+                outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], page_count,
+                        keyword, "IT Spend", cell_details)
+        mm2 = [i for i in r2.findall(row) if i and isinstance(i, str)]                   
+        if mm2:
+            for keyword in mm2:
+                outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], page_count,
+                        keyword, "IT Organization / Roles", cell_details)
+        """
+        mm3 = r3.findall(row[i])
+        if mm3:
+            list_details = folderName(path)
+            cell_details = cell_header(i+1)+str(count)
+            outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], 1,
+                    row[i], "IT Applications", cell_details)
+        """
+        mm4 = [i for i in r4.findall(row) if i and isinstance(i, str)]
+        if mm4:
+            for keyword in mm4:
+                print(keyword)
+                outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], page_count,
+                        keyword, "IT Infrastructure", cell_details)
+                        
+        mm5 = [i for i in r5.findall(row) if i and isinstance(i, str)]
+        if mm5:
+            for keyword in mm5:
+                outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], page_count,
+                        keyword, "IT Security and Controls", cell_details)
+                        
+        mm6 = [i for i in r6.findall(row) if i and isinstance(i, str)]
+        if mm6:
+            for keyword in mm6:
+                outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], page_count,
+                        keyword, "IT Projects", cell_details)
+                        
+        mm7 = [i for i in r7.findall(row) if i and isinstance(i, str)]
+        if mm7:
+            for keyword in mm7:
+                outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], page_count,
+                        keyword, "Target Technology Fitness Scorecard", cell_details)
+                        
+        mm8 = [i for i in r8.findall(row) if i and isinstance(i, str)]
+        if mm8:
+            for keyword in mm8:
+                outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3], page_count,
+                        keyword, "Misecellaneous", cell_details)         
     
     
   
@@ -181,12 +183,12 @@ def xlsb_handler(path):
             row_number = 0
             with wb.get_sheet(sheetname) as sheet:
                 for row in sheet.rows():
+                    row_number = row_number + 1
                     for i in range(len(row)):
-                        row_number = row_number + 1
                         if row[i].v:
                             list_details = folderName(path)
                             cell = cell_header(i+1)+str(row_number)
-                            cell_details = name + ": " + cell
+                            cell_details = sheetname + ": " + cell
                             sheet_handler(list_details, cell_details, path, sheet_count, row[i].v)      
    
 def folderName(path):
@@ -200,97 +202,97 @@ def folderName(path):
 # pass the additional parameter for relevance test - dynamically
 def generatingFileLevelDetail(file_path):      
     data = pd.read_excel(open(file_path,'rb'), sheet_name=0)
-    
+    if not data.empty:
     #writing to "File Level Detail"
-    file_level_detail = data[["File Name","Index Number", "Folder Name", "File Type"]].drop_duplicates()
-    file_level_detail["Number of Keywords found"] = \
-            data.groupby(['File Name']).size().reset_index()[[0]].values
-    
-    file_level_detail["Number of Keyword Categories"] = \
-            data[['File Name', 'IT Category']].drop_duplicates().groupby(['File Name']).size()\
-            .reset_index()[0].values
-            
-    intermediate1 = data[['File Name','Keyword']].groupby(['File Name', 'Keyword']).size().reset_index()
-    intermediate1[[0]] = intermediate1[[0]].astype(str).values
-    intermediate1['joined'] = intermediate1[['Keyword', 0]].apply(lambda x: '('.join(x)+"), ", axis =1).values
-            
-    file_level_detail["Keyword Details"] = intermediate1[["File Name", "joined"]].groupby("File Name").sum().values
-    
-    file_level_detail["Category Details"] = \
-        data.groupby("File Name").apply(lambda x : x["IT Category"].drop_duplicates().str.cat(sep=", ")).values
-    
-    file_level_detail["File Path"] = data["File Path"].drop_duplicates().values
-    
-    # Relevance check -- code here - assuming relevant count = 5
-    file_level_detail["Relevant?"] = data[["File Name"]].groupby(["File Name"]).size().\
-        reset_index()[0].apply(lambda x: x>5).values
-    
-    # DRL items satisfied by this 
-    
-    # writing to "File Level Detail" sheet
-    writer = pd.ExcelWriter('demo.xlsx')
-    #file_level_detail.to_excel(writer, 'File Level Detail', header = True)  
-    with pd.ExcelWriter('demo.xlsx', engine='openpyxl', mode='a') as writer:
-        file_level_detail.to_excel(writer, "File Level Detail", index = False)    
-    writer.save()
+        file_level_detail = data[["File Name","Index Number", "Folder Name", "File Type"]].drop_duplicates()
+        file_level_detail["Number of Keywords found"] = \
+                data[['File Name']].groupby(['File Name']).size().reset_index()[0].values
+        
+        file_level_detail["Number of Keyword Categories"] = \
+                data[['File Name', 'IT Category']].drop_duplicates().groupby(['File Name']).size()\
+                .reset_index()[0].values
+                
+        intermediate1 = data[['File Name','Keyword']].groupby(['File Name', 'Keyword']).size().reset_index()
+        intermediate1[[0]] = intermediate1[[0]].astype(str).values
+        intermediate1['joined'] = intermediate1[['Keyword', 0]].apply(lambda x: '('.join(x)+"), ", axis =1).values
+                
+        file_level_detail["Keyword Details"] = intermediate1[["File Name", "joined"]].groupby(["File Name"]).sum().values
+        
+        file_level_detail["Category Details"] = \
+            data.groupby("File Name").apply(lambda x : x["IT Category"].drop_duplicates().str.cat(sep=", ")).values
+        
+        file_level_detail["File Path"] = data["File Path"].drop_duplicates().values
+        
+        # Relevance check -- code here - assuming relevant count = 5
+        file_level_detail["Relevant?"] = data[["File Name"]].groupby(["File Name"]).size().\
+            reset_index()[0].apply(lambda x: x>5).values
+        
+        # DRL items satisfied by this 
+        
+        # writing to "File Level Detail" sheet
+        writer = pd.ExcelWriter('demo.xlsx')
+        #file_level_detail.to_excel(writer, 'File Level Detail', header = True)  
+        with pd.ExcelWriter('demo.xlsx', engine='openpyxl', mode='a') as writer:
+            file_level_detail.to_excel(writer, "File Level Detail", index = False)    
+        writer.save()
 
 def generatingKeywordDetails(file_path):
     data = pd.read_excel(open(file_path,'rb'), sheet_name="Raw Details")
-    
+    if not data.empty:
     #distinct keywords
-    keyword_details = data[["Keyword"]].drop_duplicates()
-    
-    # distinct keywords with the IT category
-    keyword_details = data[["Keyword", "IT Category"]]\
-        .drop_duplicates().merge(keyword_details, on="Keyword")
+        keyword_details = data[["Keyword"]].drop_duplicates()
         
-    #  Number of files with keywords  
-    keyword_details = data[["Keyword", "File Name"]].drop_duplicates().groupby(["Keyword"])\
-        .size().reset_index().merge(keyword_details, on = "Keyword")
-    
-    # renaming
-    keyword_details = keyword_details.\
-        rename(columns={'IT Category': 'Keyword Category', 0: 'Number of files with keywords'})
+        # distinct keywords with the IT category
+        keyword_details = data[["Keyword", "IT Category"]]\
+            .drop_duplicates().merge(keyword_details, on="Keyword")
+            
+        #  Number of files with keywords  
+        keyword_details = data[["Keyword", "File Name"]].drop_duplicates().groupby(["Keyword"])\
+            .size().reset_index().merge(keyword_details, on = "Keyword")
         
-    #Total keyword hits
-    keyword_details = data[["File Name","Keyword"]].groupby(["Keyword"])\
-        .size().reset_index().merge(keyword_details, on = "Keyword").rename(columns={0:"Total keyword hits"})
-
-    #File(s) with maximum keyword hits and File Path(s)
-    intermediate2 = data[["Keyword", "File Name", "File Path"]].groupby(["Keyword", "File Name", "File Path"])\
-        .size().reset_index().merge(keyword_details, on = "Keyword").rename({0:"Count"}, axis = 1)\
-        [["File Name", "Keyword", "File Path", "Count"]]
+        # renaming
+        keyword_details = keyword_details.\
+            rename(columns={'IT Category': 'Keyword Category', 0: 'Number of files with keywords'})
+            
+        #Total keyword hits
+        keyword_details = data[["File Name","Keyword"]].groupby(["Keyword"])\
+            .size().reset_index().merge(keyword_details, on = "Keyword").rename(columns={0:"Total keyword hits"})
     
-    intermediate3 = intermediate2.groupby('Keyword')['Count'].apply(lambda x : x.eq(x.max()))
-    
-    intermediate4 = intermediate2.loc[intermediate3].groupby(['Keyword'])['File Name'].agg(', '.join).reset_index()
-    
-    intermediate5 = intermediate2.loc[intermediate3].groupby(['Keyword'])['File Path'].agg(', '.join).reset_index()
-    
-    keyword_details = keyword_details.merge(intermediate4, on = "Keyword")
-    
-    keyword_details = keyword_details.merge(intermediate5, on = "Keyword")
-       
-    # All file(s) with keyword hits
-    keyword_details["All file(s) with keyword hits"] = \
-        data[["Keyword", "File Path"]].groupby(["Keyword"])\
-        .apply(lambda x : x["File Path"].drop_duplicates().str.cat(sep=", ")).reset_index().\
-        merge(keyword_details,on = "Keyword")[[0]].values
+        #File(s) with maximum keyword hits and File Path(s)
+        intermediate2 = data[["Keyword", "File Name", "File Path"]].groupby(["Keyword", "File Name", "File Path"])\
+            .size().reset_index().merge(keyword_details, on = "Keyword").rename({0:"Count"}, axis = 1)\
+            [["File Name", "Keyword", "File Path", "Count"]]
         
-    # Index Number(s)
-    keyword_details["Index Number(s)"] = \
-        data[["Keyword", "Index Number"]].groupby("Keyword")\
-        .apply(lambda x : x["Index Number"].drop_duplicates().str.cat(sep=", ")).reset_index()\
-        .merge(keyword_details, on = "Keyword")[[0]].values   
+        intermediate3 = intermediate2.groupby('Keyword')['Count'].apply(lambda x : x.eq(x.max()))
         
+        intermediate4 = intermediate2.loc[intermediate3].groupby(['Keyword'])['File Name'].agg(', '.join).reset_index()
         
-    # writing to "File Level Detail" sheet
-    writer = pd.ExcelWriter('demo.xlsx')
-    #file_level_detail.to_excel(writer, 'File Level Detail', header = True)  
-    with pd.ExcelWriter('demo.xlsx', engine='openpyxl', mode='a') as writer:
-        keyword_details.to_excel(writer, "Keyword Details", index = False)    
-    writer.save()
+        intermediate5 = intermediate2.loc[intermediate3].groupby(['Keyword'])['File Path'].agg(', '.join).reset_index()
         
+        keyword_details = keyword_details.merge(intermediate4, on = "Keyword")
+        
+        keyword_details = keyword_details.merge(intermediate5, on = "Keyword")
+           
+        # All file(s) with keyword hits
+        keyword_details["All file(s) with keyword hits"] = \
+            data[["Keyword", "File Path"]].groupby(["Keyword"])\
+            .apply(lambda x : x["File Path"].drop_duplicates().str.cat(sep=", ")).reset_index().\
+            merge(keyword_details,on = "Keyword")[[0]].values
+            
+        # Index Number(s)
+        keyword_details["Index Number(s)"] = \
+            data[["Keyword", "Index Number"]].groupby("Keyword")\
+            .apply(lambda x : x["Index Number"].drop_duplicates().str.cat(sep=", ")).reset_index()\
+            .merge(keyword_details, on = "Keyword")[[0]].values   
+            
+            
+        # writing to "File Level Detail" sheet
+        writer = pd.ExcelWriter('demo.xlsx')
+        #file_level_detail.to_excel(writer, 'File Level Detail', header = True)  
+        with pd.ExcelWriter('demo.xlsx', engine='openpyxl', mode='a') as writer:
+            keyword_details.to_excel(writer, "Keyword Details", index = False)    
+        writer.save()
+            
 # triggering the application
 if __name__ == '__main__':
     wb = xlrd.open_workbook(r"C:\Users\sb512911\Desktop\All\Applications\VDR\Keyword Index for VDR Automation.xlsx")
@@ -315,7 +317,8 @@ if __name__ == '__main__':
     r7 = re.compile('|'.join([r'\b%s\b' % w for w in target_tech_fitness]), flags=re.I)
     r8 = re.compile('|'.join([r'\b%s\b' % w for w in misecellaneous]), flags=re.I)
    
-    root = r'C:\Users\sb512911\Desktop\All\Applications\VDR\data'
+    root = r'C:\Users\sb512911\Desktop\All\Applications\VDR\VDR data\RoundTrip Data Room'
+    #root = r"C:\Users\sb512911\Desktop\All\Applications\VDR\data\xlsm"
     #csv_handler(file_name)  
    
     fileList = []
