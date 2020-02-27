@@ -40,8 +40,8 @@ try:
 except KeyError as e:
     print("Config file is empty")
     sys.exit(1)
-except e:
-    print("Check config file")
+except Exception as e:
+    print("Check config file", e)
     sys.exit(1)
 
 workbook = xlsxwriter.Workbook(output_file)
@@ -50,7 +50,7 @@ header_format = workbook.add_format({
     'bold': True,
     'text_wrap': True,
     'valign': 'top',
-    'fg_color': '#D7E4BC',
+    'fg_color': '#FFFF00',
     'border': 1})
 
 worksheet1 = workbook.add_worksheet("Raw Details")
@@ -310,6 +310,27 @@ def generatingFileLevelDetail(file_path):
                 file_level_detail.to_excel(writer, "File Level Detail", index = False)
             writer.save()
 
+            wb1 = openpyxl.load_workbook(output_file)
+            ws = wb1['File Level Detail']
+            fillBack = PatternFill(start_color="00FFFF00", fill_type="solid")
+
+            ws.column_dimensions['A'].width = 24.94
+            ws.column_dimensions['B'].width = 24.94
+            ws.column_dimensions['C'].width = 24.94
+            ws.column_dimensions['D'].width = 24.94
+            ws.column_dimensions['E'].width = 24.94
+            ws.column_dimensions['F'].width = 24.94
+            ws.column_dimensions['G'].width = 24.94
+            ws.column_dimensions['H'].width = 24.94
+            ws.column_dimensions['I'].width = 24.94
+            ws.column_dimensions['J'].width = 24.94
+            ws.column_dimensions['K'].width = 24.94
+            ws.row_dimensions[1].height  = 28.8
+
+            for cell in ws["1:1"]:
+                cell.fill = fillBack
+            wb1.save(output_file)
+
     except:
         print("error occured while generating file level detail")
         sys.exit(1)
@@ -387,12 +408,18 @@ def generatingKeywordDetails(file_path):
 
             wb1 = openpyxl.load_workbook(output_file)
             ws = wb1['Keyword Details']
+            fillBack = PatternFill(start_color="00FFFF00", fill_type = "solid")
 
-            style_1 = Font(color='0000FF00', bold=True, underline="single", size=15)
-            fillBack = PatternFill(start_color="FFC7CE", fill_type = "solid")
-            print(len(ws.column_dimensions))
-            ws.column_dimensions['A'].width = 25
-            ws.column_dimensions['B'].width = 25
+            ws.column_dimensions['A'].width = 24.94
+            ws.column_dimensions['B'].width = 24.94
+            ws.column_dimensions['C'].width = 24.94
+            ws.column_dimensions['D'].width = 24.94
+            ws.column_dimensions['E'].width = 24.94
+            ws.column_dimensions['F'].width = 24.94
+            ws.column_dimensions['G'].width = 24.94
+            ws.column_dimensions['H'].width = 24.94
+            ws.column_dimensions['I'].width = 24.94
+            ws.row_dimensions[1].height = 28.8
 
             for cell in ws["1:1"]:
                 cell.fill = fillBack
@@ -475,6 +502,23 @@ def generatingDRLDetails(drl_path, output_path):
         with pd.ExcelWriter(output_file, engine='openpyxl', mode='a') as writer:
             dataframe.to_excel(writer, "DRL Details", index = False)    
             writer.save()
+
+        wb1 = openpyxl.load_workbook(output_file)
+        ws = wb1['DRL Details']
+        fillBack = PatternFill(start_color="00FFFF00", fill_type="solid")
+
+        ws.column_dimensions['A'].width = 24.94
+        ws.column_dimensions['B'].width = 24.94
+        ws.column_dimensions['C'].width = 24.94
+        ws.column_dimensions['D'].width = 24.94
+        ws.column_dimensions['E'].width = 24.94
+        ws.column_dimensions['F'].width = 24.94
+        ws.column_dimensions['G'].width = 24.94
+        ws.row_dimensions[1].height = 28.8
+
+        for cell in ws["1:1"]:
+            cell.fill = fillBack
+        wb1.save(output_file)
             
 def keyword_sql():
     try:
