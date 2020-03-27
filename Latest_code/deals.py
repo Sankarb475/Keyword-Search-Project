@@ -3,7 +3,7 @@
 Created on Mon Jan 20 12:36:08 2020
 @author: sbiswas149
 """
-
+import win32com.client
 import csv
 import xlrd
 import re
@@ -13,19 +13,17 @@ import pandas as pd
 import openpyxl
 from openpyxl.styles import Font, PatternFill
 from pyxlsb import open_workbook
-import numpy as np
 from independentsoft.msg import Message
 from striprtf.striprtf import rtf_to_text
-import comtypes.client
 import sys
 import PyPDF2
-from odf import text, teletype
+from odf import text
 from odf.opendocument import load
 from sqlalchemy import create_engine
-import pymysql
 import ast
 import configparser
 import textract
+from pdf2image import convert_from_path, convert_from_bytes
 
 outputCol = 0
 outputRow = 1
@@ -70,7 +68,6 @@ worksheet1.write('I1', 'Page/Slide Number', header_format)
 
 def specialCharReplace(word):
     return re.sub('[^A-Za-z0-9\s]+', '', word)
-
 
 def cell_header(a):
     if a <= 26:
@@ -123,6 +120,62 @@ def img_handler(path):
     content = removal(str(text))
     sheet_handler(list_details, 1, path, 1, content)
 
+
+def doc_handler(path):
+    #word = comtypes.client.CreateObject('Word.Application')
+    wdFormatPDF = 17
+    out_file = temp_storage_path + "\\" + "temp_doc.pdf"
+    word = win32com.client.DispatchEx("Word.Application")
+    doc = word.Documents.Open(path)
+    doc.SaveAs(out_file, FileFormat=wdFormatPDF)
+    doc.Close()
+    word.Quit()
+    list_details = folderName(path)
+    pdf_handler_for_doc(out_file, path, list_details)
+    os.remove(out_file)
+
+def ppt_handler(path, formatType = 32):
+    powerpoint = win32com.client.DispatchEx("Powerpoint.Application")
+    powerpoint.Visible = 1
+    out_file = temp_storage_path + "\\" + "temp_ppt.pdf"
+    deck = powerpoint.Presentations.Open(path)
+    deck.SaveAs(out_file, formatType) # formatType = 32 for ppt to pdf
+    deck.Close()
+    powerpoint.Quit()
+    list_details = folderName(path)
+    pdf_handler_for_doc(out_file, path, list_details)
+    os.remove(out_file)
+
+
+def pdf_handler_for_doc(pdf_path, path, list_details):
+    #convertedpdf = pdf2image.convert_from_path(file,dpi=200,grayscale=False,poppler_path="C:/bin/",output_folder=savepath,fmt='jpg')
+    #pages = convert_from_path(pdf_path, 500)
+    a = open(pdf_path, 'rb')
+    pages = convert_from_bytes(a.read())
+    total_pages = len(pages)
+    for index, page in enumerate(pages):
+        temp_path = temp_storage_path + "\\" + str(index) + ".JPEG"
+        page.save(temp_path, 'JPEG')
+        img_handler_for_pdf(temp_path, path, index, total_pages, list_details)
+        os.remove(temp_path)
+    print("here 3")
+
+def pdf_handler(path):
+    pages = convert_from_path(path, 500)
+    total_pages = len(pages)
+    list_details = folderName(path)
+    for index, page in enumerate(pages):
+        temp_path = temp_storage_path + "\\" + str(index) + ".JPEG"
+        page.save(temp_path, 'JPEG')
+        img_handler_for_pdf(temp_path, path, index, total_pages, list_details)
+        os.remove(temp_path)
+
+def img_handler_for_pdf(temp_path, path, page_number ,total_pages, list_details):
+    print("here 2")
+    text = textract.process(temp_path, encoding='ascii', method='tesseract')
+    content = removal(str(text))
+    sheet_handler(list_details, page_number, path, total_pages, content)
+
 def xlsx_handler(path):
     sheets_dict = pd.read_excel(path, sheet_name=None, header=None)
     sheet_count = len(sheets_dict)
@@ -158,7 +211,7 @@ def odt_handler(path):
         sheet_handler(list_details, 1, path, 1, str(i))
 
 
-def pdf_handler(path, path_doc):
+def pdf_handler1(path, path_doc):
     list_details = folderName(path_doc)
     with open(path, 'rb') as pdf_file:
         read_pdf = PyPDF2.PdfFileReader(pdf_file)
@@ -167,22 +220,6 @@ def pdf_handler(path, path_doc):
             page = read_pdf.getPage(page_number)
             page_content = page.extractText()
             sheet_handler(list_details, page_number, path_doc, number_of_pages, page_content)
-
-
-def doc_handler(path):
-    global temp_storage_path
-    print(temp_storage_path)
-    wdFormatPDF = 17
-    in_file = path
-    out_file = os.path.abspath(temp_storage_path)
-    word = comtypes.client.CreateObject('Word.Application')
-    doc = word.Documents.Open(in_file)
-    doc.SaveAs(out_file, FileFormat=wdFormatPDF)
-    doc.Close()
-    word.Quit()
-    pdf_handler(temp_storage_path, path)
-    os.remove(temp_storage_path)
-
 
 def msg_handler(path):
     content = str(Message(path).body)
@@ -365,11 +402,13 @@ def generatingKeywordDetails(file_path):
                     merge(keyword_details, on="Keyword")[[0]].values
 
             # Index Number(s)
+            print("Till here")
             keyword_details["Index Number(s)"] = \
                 data[["Keyword", "Index Number"]].groupby("Keyword") \
-                    .apply(lambda x: x["Index Number"].drop_duplicates().str.cat(sep=", ")).reset_index() \
+                    .apply(lambda x: x["Index Number"].drop_duplicates().dropna().str.cat(sep=", ")).reset_index() \
                     .merge(keyword_details, on="Keyword")[[0]].values
 
+            print("here I am ")
             # All the file names which has the keyword
             keyword_details["File Name(s)"] = \
                 data[["Keyword", "File Name"]].groupby("Keyword") \
@@ -409,7 +448,7 @@ def generatingKeywordDetails(file_path):
             wb1.save(output_file)
 
     except Exception as e:
-        print("Error occured while generating DRL details", e)
+        print("Error occured while generating Keyword details", e)
         sys.exit(1)
 
 
@@ -584,8 +623,12 @@ if __name__ == '__main__':
                 doc_handler(i)
             elif i.endswith(".odt"):
                 odt_handler(i)
+            elif i.endswith((".pptx", "ppt")):
+                ppt_handler(i)
             elif i.endswith((".PNG", ".png", ".JPEG", ".jpeg", ".JPG", ".jpg", ".gif", ".bmp", ".pnm", ".PNM", ".jfif", ".tiff")):
                 img_handler(i)
+            elif i.endswith((".pdf", ".PDF")):
+                pdf_handler(i)
             else:
                 list_details = folderName(i)
                 outputWriterRawDetail(list_details[0], list_details[1], list_details[2], i, "Unknown", "", "",
@@ -598,6 +641,6 @@ if __name__ == '__main__':
 
         print("The end")
     except KeyError as e:
-        print("Either data is not present or column is missing")
+        print("Either data is not present or column is missing", e)
     except PermissionError as e:
-        print("Some files are open - thus not accessible")
+        print("Some files are open or not have permission to open - thus not accessible", e)
