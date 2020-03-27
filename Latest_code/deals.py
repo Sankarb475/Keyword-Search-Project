@@ -24,7 +24,18 @@ import ast
 import configparser
 import textract
 from pdf2image import convert_from_path, convert_from_bytes
+import logging
+import logging.config
+from os import path
 
+# create logger
+logger = logging.getLogger('VDR')
+logging.basicConfig(filename= r'D:\Backend Python\Scripts\logs\example.log',
+                            filemode='a',
+                            format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+                            datefmt='%H:%M:%S',
+                            level=logging.DEBUG)
+logging.warning('is when this event was logged.')
 outputCol = 0
 outputRow = 1
 keyword_dic = {}
@@ -32,13 +43,13 @@ pattern_list = []
 try:
     config = configparser.ConfigParser()
     config.read('properties.ini')
-
     output_file = config['Directories']['output_file']
     temp_storage_path = config['Directories']['temp_storage']
     keyword_file = config['Directories']['keyword_file']
     intermediate_file = config['Directories']['intermediate_file']
 except KeyError as e:
     print("Config file is empty")
+    logger.critical('Config file is empty - fatal error')
     sys.exit(1)
 except Exception as e:
     print("Check config file", e)
@@ -158,7 +169,6 @@ def pdf_handler_for_doc(pdf_path, path, list_details):
         page.save(temp_path, 'JPEG')
         img_handler_for_pdf(temp_path, path, index, total_pages, list_details)
         os.remove(temp_path)
-    print("here 3")
 
 def pdf_handler(path):
     pages = convert_from_path(path, 500)
@@ -171,7 +181,6 @@ def pdf_handler(path):
         os.remove(temp_path)
 
 def img_handler_for_pdf(temp_path, path, page_number ,total_pages, list_details):
-    print("here 2")
     text = textract.process(temp_path, encoding='ascii', method='tesseract')
     content = removal(str(text))
     sheet_handler(list_details, page_number, path, total_pages, content)
@@ -398,17 +407,15 @@ def generatingKeywordDetails(file_path):
             # All file(s) with keyword hits
             keyword_details["File Path(s)"] = \
                 data[["Keyword", "File Path"]].groupby(["Keyword"]) \
-                    .apply(lambda x: x["File Path"].drop_duplicates().str.cat(sep=", ")).reset_index(). \
-                    merge(keyword_details, on="Keyword")[[0]].values
-
-            # Index Number(s)
-            print("Till here")
-            keyword_details["Index Number(s)"] = \
-                data[["Keyword", "Index Number"]].groupby("Keyword") \
-                    .apply(lambda x: x["Index Number"].drop_duplicates().dropna().str.cat(sep=", ")).reset_index() \
+                    .apply(lambda x: x["File Path"].drop_duplicates().str.cat(sep=", ")).reset_index() \
                     .merge(keyword_details, on="Keyword")[[0]].values
 
-            print("here I am ")
+            # Index Number(s)
+            keyword_details["Index Number(s)"] = \
+                data[["Keyword", "Index Number"]].groupby("Keyword") \
+                    .apply(lambda x: x["Index Number"].drop_duplicates().astype(str).str.cat(sep=", ")).reset_index() \
+                    .merge(keyword_details, on="Keyword")[[0]].values
+
             # All the file names which has the keyword
             keyword_details["File Name(s)"] = \
                 data[["Keyword", "File Name"]].groupby("Keyword") \
@@ -464,12 +471,8 @@ def generatingDRLDetails(drl_path, output_path):
         dict_all[file] = data[data['File Name'] == file]['Keyword'].tolist()
         dict_index_number[file] = data[data['File Name'] == file]['Index Number'].tolist()[0]
         dict_file_path[file] = data[data['File Name'] == file]['File Path'].tolist()[0]
-    print("file name details", dict_all)
-    print("index", dict_index_number)
-    print("file path", dict_file_path)
     workbook1 = xlrd.open_workbook(drl_path)
     sh = workbook1.sheet_by_index(0)
-    print("till here 1")
     for rownum in range(sh.nrows):
         rows = sh.row_values(rownum)
         if rows[5].strip().lower() == "it":
@@ -486,7 +489,6 @@ def generatingDRLDetails(drl_path, output_path):
                 for m in values:
                     r1 = re.compile('|'.join([r'(?<!\w)%s(?!\w)' % re.escape(m)]), flags=re.I)
                     matches = r1.findall(sentence)
-                    print("matches")
                     if matches:
                         count = count + 1
                 if count >= 5:
@@ -500,8 +502,6 @@ def generatingDRLDetails(drl_path, output_path):
                         satisfied_output_file_name[int(drl_number)] += keys + ", "
                         satisfied_output_file_path[int(drl_number)] += dict_file_path[keys] + ", "
                         satisfied_output_index[int(drl_number)] += str(dict_index_number[keys]) + ", "
-            print(satisfied_output_file_name)
-            print("here 1")
             if (satisfied_output_file_name and satisfied_output_file_path \
                     and satisfied_output_index):
                 dict1 = {}
@@ -523,7 +523,7 @@ def generatingDRLDetails(drl_path, output_path):
                 dict1["File Path(s)"] = ""
                 dict1["File Name(s)"] = ""
                 each_row.append(dict1)
-    print("till here")
+
     dataframe = pd.DataFrame(each_row)
     dataframe = dataframe[
             ["DRL #", "Request", "Relevant Files Found?", "Number of relevant files", "File Name(s)", "Index Number(s)",
@@ -549,8 +549,6 @@ def generatingDRLDetails(drl_path, output_path):
     for cell in ws["1:1"]:
         cell.fill = fillBack
     wb1.save(output_file)
-
-
 
 def keyword_sql():
     try:
@@ -594,8 +592,6 @@ if __name__ == '__main__':
 
         root = input_dict['VDR_Location']
         drl_file_path = input_dict['DRL_Location']
-        print(drl_file_path)
-        print(output_file)
 
         keywordlist()
         #user_input = df[df["category"] == "User_Input"]["keyword"].values.tolist()
@@ -639,8 +635,15 @@ if __name__ == '__main__':
         generatingKeywordDetails(output_file)
         generatingDRLDetails(drl_file_path, output_file)
 
-        print("The end")
     except KeyError as e:
         print("Either data is not present or column is missing", e)
+        logger.critical("Either data is not present or column is missing", e)
     except PermissionError as e:
         print("Some files are open or not have permission to open - thus not accessible", e)
+    except Exception as e:
+        logger.info("Fatal error has occured - ", e)
+    finally:
+        logger.info("The end")
+        logger.info("***********************************NEXT RUN************************************")
+        logger.info("*******************************************************************************")
+        logger.info("*******************************************************************************")
