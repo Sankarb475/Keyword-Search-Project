@@ -3,11 +3,11 @@
 Created on Mon Jan 20 12:36:08 2020
 @author: sbiswas149
 """
+import comtypes.client as coms
 import win32com.client
 import csv
 import xlrd
 import re
-import os
 import xlsxwriter
 import pandas as pd
 import openpyxl
@@ -15,7 +15,6 @@ from openpyxl.styles import Font, PatternFill
 from pyxlsb import open_workbook
 from independentsoft.msg import Message
 from striprtf.striprtf import rtf_to_text
-import sys
 import PyPDF2
 from odf import text
 from odf.opendocument import load
@@ -26,7 +25,10 @@ import textract
 from pdf2image import convert_from_path, convert_from_bytes
 import logging
 import logging.config
-from os import path
+import os, sys
+from PIL import Image
+from visio2pdf import Visio2PDFConverter
+
 
 # create logger
 logger = logging.getLogger('VDR')
@@ -122,6 +124,7 @@ def sheet_handler(list_details, cell_details, path, page_count, row):
     except Exception as e:
         print("Error while writing to RAW details", e)
 
+
 def removal(text):
     return text.replace("\\r", " ").replace("\\n", " ").replace('\\x', " ").replace('0c', " ")
 
@@ -129,13 +132,29 @@ def img_handler(path):
     list_details = folderName(path)
     text = textract.process(path, encoding='ascii', method='tesseract')
     content = removal(str(text))
+    print(content)
     sheet_handler(list_details, 1, path, 1, content)
 
+def visio_handler(path):
+    out_file = os.path.join(temp_storage_path, "temp_visio.pdf")
+    vpc = Visio2PDFConverter(visio_process_name='visio.exe',
+                             current_working_directory=None,
+                             temp_file_name='visio2pdf4latex_temp', visio_ext_names=['vsdx', 'vsd'])
+    vpc.convert('one_visio_file.vsd')
+
+def tiff_handler(path):
+    list_details = folderName(path)
+    out_file = os.path.join(temp_storage_path, "temp_img.JPEG")
+    im = Image.open(path)
+    out = im.convert("RGB")
+    out.save(out_file, "JPEG", quality=90)
+    img_handler_for_pdf(out_file, path, 1, 1, list_details)
+    os.remove(out_file)
 
 def doc_handler(path):
     #word = comtypes.client.CreateObject('Word.Application')
     wdFormatPDF = 17
-    out_file = temp_storage_path + "\\" + "temp_doc.pdf"
+    out_file = os.path.join(temp_storage_path, "temp_doc.pdf")
     word = win32com.client.DispatchEx("Word.Application")
     doc = word.Documents.Open(path)
     doc.SaveAs(out_file, FileFormat=wdFormatPDF)
@@ -148,7 +167,7 @@ def doc_handler(path):
 def ppt_handler(path, formatType = 32):
     powerpoint = win32com.client.DispatchEx("Powerpoint.Application")
     powerpoint.Visible = 1
-    out_file = temp_storage_path + "\\" + "temp_ppt.pdf"
+    out_file = os.path.join(temp_storage_path, "temp_ppt.pdf")
     deck = powerpoint.Presentations.Open(path)
     deck.SaveAs(out_file, formatType) # formatType = 32 for ppt to pdf
     deck.Close()
@@ -183,6 +202,7 @@ def pdf_handler(path):
 def img_handler_for_pdf(temp_path, path, page_number ,total_pages, list_details):
     text = textract.process(temp_path, encoding='ascii', method='tesseract')
     content = removal(str(text))
+    print(content)
     sheet_handler(list_details, page_number, path, total_pages, content)
 
 def xlsx_handler(path):
@@ -256,6 +276,9 @@ def rtf_handler(path):
 
 
 def index_number_verification(index):
+    r = re.compile('[@_!#$%^&*()<>?/\|}{~:]')
+    if (index.isupper() or index.islower()) or r.search(index) != None:
+        return " "
     if "_" in index:
         index = index.split("_")[0]
     index = re.sub('[^0-9\.\s]+', '', index)
@@ -621,10 +644,14 @@ if __name__ == '__main__':
                 odt_handler(i)
             elif i.endswith((".pptx", "ppt")):
                 ppt_handler(i)
-            elif i.endswith((".PNG", ".png", ".JPEG", ".jpeg", ".JPG", ".jpg", ".gif", ".bmp", ".pnm", ".PNM", ".jfif", ".tiff")):
+            elif i.endswith((".PNG", ".png", ".JPEG", ".jpeg", ".JPG", ".jpg", ".gif", ".pnm", ".PNM")):
                 img_handler(i)
             elif i.endswith((".pdf", ".PDF")):
                 pdf_handler(i)
+            elif i.endswith(".vsdx"):
+                visio_handler(i)
+            elif i.endswith((".tiff", ".tif", ".jfif", ".bmp", ".vsdx")):
+                tiff_handler(i)
             else:
                 list_details = folderName(i)
                 outputWriterRawDetail(list_details[0], list_details[1], list_details[2], i, "Unknown", "", "",
