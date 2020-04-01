@@ -199,7 +199,9 @@ def pdf_handler_for_doc(pdf_path, path, list_details):
             img_handler_for_pdf(temp_path, path, index, total_pages, list_details)
             os.remove(temp_path)
     except Exception as e:
-        print("error", e)
+        print("exception has occured while procesing this file:: ", path)
+        print("The error is:: ", e)
+        print("skipping this file")
         pass
 
 # extracts images out of scanned pdfs
@@ -216,7 +218,9 @@ def pdf_handler(path):
             os.remove(temp_path)
 
     except Exception as e:
-        print("error", e)
+        print("exception has occured while procesing this file:: ", path)
+        print("The error is:: ", e)
+        print("skipping this file")
         pass
 
 # handles images converted from pdfs which in turn is converted from docx and ppts
@@ -227,11 +231,10 @@ def img_handler_for_pdf(temp_path, path, page_number ,total_pages, list_details)
         #text = pytesseract.image_to_string(temp_path)
         content = removal(str(text))
         sheet_handler(list_details, page_number, path, total_pages, content)
-    except MemoryError as e:
-        memory_error_files.append(path)
-        pass
     except Exception as e:
-        exception_files.append(path)
+        print("exception has occured while procesing this file:: ", path)
+        print("The error is:: ", e)
+        print("skipping this file")
         pass
 
 # handles xlsb files
@@ -642,8 +645,6 @@ if __name__ == '__main__':
     except Exception as e:
         logger.info("Fatal error has occured - ", e)
     finally:
-        print(memory_error_files)
-        print(exception_files)
         print(datetime.datetime.now())
         logger.info("The end")
         logger.info("***********************************NEXT RUN************************************")
