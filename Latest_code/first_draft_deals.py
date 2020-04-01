@@ -137,7 +137,7 @@ def img_handler(path):
     list_details = folderName(path)
     text = textract.process(path, encoding='ascii', method='tesseract')
     content = removal(str(text))
-    print(content)
+    #print(content)
     sheet_handler(list_details, 1, path, 1, content)
 
 # handles visio files
