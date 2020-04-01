@@ -3,7 +3,8 @@
 Created on Mon Jan 20 12:36:08 2020
 @author: sbiswas149
 """
-import comtypes.client as coms
+
+import pytesseract
 import win32com.client
 import csv
 import xlrd
@@ -15,7 +16,7 @@ from openpyxl.styles import Font, PatternFill
 from pyxlsb import open_workbook
 from independentsoft.msg import Message
 from striprtf.striprtf import rtf_to_text
-import PyPDF2
+import wand.image
 from odf import text
 from odf.opendocument import load
 from sqlalchemy import create_engine
@@ -28,8 +29,13 @@ import logging.config
 import os, sys
 from PIL import Image
 from visio2pdf import Visio2PDFConverter
+import datetime
+import multiprocessing
+import pyocr
+import pyocr.builders
+import numpy as np
 
-
+tools = pyocr.get_available_tools()
 # create logger
 logger = logging.getLogger('VDR')
 logging.basicConfig(filename= r'D:\Backend Python\Scripts\logs\example.log',
@@ -40,8 +46,11 @@ logging.basicConfig(filename= r'D:\Backend Python\Scripts\logs\example.log',
 logging.warning('is when this event was logged.')
 outputCol = 0
 outputRow = 1
+memory_error_files = []
+exception_files = []
 keyword_dic = {}
 pattern_list = []
+raw_details_list = []
 try:
     config = configparser.ConfigParser()
     config.read('properties.ini')
@@ -80,7 +89,9 @@ worksheet1.write('I1', 'Page/Slide Number', header_format)
 
 
 def specialCharReplace(word):
-    return re.sub('[^A-Za-z0-9\s]+', '', word)
+    if isinstance(word, str):
+        return re.sub('[^A-Za-z0-9\s.]+', '', word)
+    return word
 
 def cell_header(a):
     if a <= 26:
@@ -110,19 +121,25 @@ def pattern(keys):
     return re.compile('|'.join([r'(?<!\w)%s(?!\w)' % re.escape(keys)]), flags=re.I)
 
 def sheet_handler(list_details, cell_details, path, page_count, row):
-    global pattern_list
     try:
+        global keyword_dic
         if isinstance(row, str):
             for category, keywords in keyword_dic.items():
                 for keys in keywords:
                     r = pattern(keys)
                     words = r.findall(row)
                     for i in words:
-                        outputWriterRawDetail(list_details[0], list_details[1], list_details[2], path, list_details[3],
-                                              page_count, keys, category, cell_details)
+                        print("words", words)
+                        temp_dic = {"File Name": list_details[0], "Index Number" : list_details[1],
+                                    "Folder Name": list_details[2], "File Path" : path, "File Type": list_details[3],
+                                    "Total Number of Page(s)/Slide(s)": page_count, "Keyword": keys, "IT Category":
+                                    category, "Page/Slide Number": cell_details}
+                        raw_details_list.append(temp_dic)
+
 
     except Exception as e:
         print("Error while writing to RAW details", e)
+        sys.exit(1)
 
 
 def removal(text):
@@ -180,41 +197,66 @@ def ppt_handler(path, formatType = 32):
 def pdf_handler_for_doc(pdf_path, path, list_details):
     #convertedpdf = pdf2image.convert_from_path(file,dpi=200,grayscale=False,poppler_path="C:/bin/",output_folder=savepath,fmt='jpg')
     #pages = convert_from_path(pdf_path, 500)
-    a = open(pdf_path, 'rb')
-    pages = convert_from_bytes(a.read())
-    total_pages = len(pages)
-    for index, page in enumerate(pages):
-        temp_path = temp_storage_path + "\\" + str(index) + ".JPEG"
-        page.save(temp_path, 'JPEG')
-        img_handler_for_pdf(temp_path, path, index, total_pages, list_details)
-        os.remove(temp_path)
+    try:
+        pages = convert_from_path(path, 120)
+        total_pages = len(pages)
+        for index, page in enumerate(pages):
+            temp_file = list_details[0] + str(index + 1) + '.jpeg'
+            temp_path = os.path.join(temp_storage_path, temp_file)
+            page.save(temp_path, 'JPEG')
+            img_handler_for_pdf(temp_path, path, index, total_pages, list_details)
+            os.remove(temp_path)
+    except Exception as e:
+        print("error", e)
+        pass
 
 def pdf_handler(path):
-    pages = convert_from_path(path, 500)
-    total_pages = len(pages)
-    list_details = folderName(path)
-    for index, page in enumerate(pages):
-        temp_path = temp_storage_path + "\\" + str(index) + ".JPEG"
-        page.save(temp_path, 'JPEG')
-        img_handler_for_pdf(temp_path, path, index, total_pages, list_details)
-        os.remove(temp_path)
+    try:
+        pages = convert_from_path(path, 120)
+        total_pages = len(pages)
+        list_details = folderName(path)
+        for index, page in enumerate(pages):
+            temp_file = list_details[0] + str(index + 1) + '.jpeg'
+            temp_path = os.path.join(temp_storage_path, temp_file)
+            page.save(temp_path, 'JPEG')
+            img_handler_for_pdf(temp_path, path, index, total_pages, list_details)
+            os.remove(temp_path)
+
+    except Exception as e:
+        print("error", e)
+        pass
 
 def img_handler_for_pdf(temp_path, path, page_number ,total_pages, list_details):
-    text = textract.process(temp_path, encoding='ascii', method='tesseract')
-    content = removal(str(text))
-    print(content)
-    sheet_handler(list_details, page_number, path, total_pages, content)
+    try:
+        #text = textract.process(temp_path, encoding="ascii",  errors='ignore', method='tesseract')
+        text = tools[0].image_to_string(Image.open(temp_path), lang="eng", builder=pyocr.builders.TextBuilder())
+        #text = pytesseract.image_to_string(temp_path)
+        content = removal(str(text))
+        sheet_handler(list_details, page_number, path, total_pages, content)
+    except MemoryError as e:
+        memory_error_files.append(path)
+        pass
+    except Exception as e:
+        exception_files.append(path)
+        pass
 
 def xlsx_handler(path):
     sheets_dict = pd.read_excel(path, sheet_name=None, header=None)
     sheet_count = len(sheets_dict)
     list_details = folderName(path)
     for name, sheet in sheets_dict.items():
+        # removing columns which has float values
+        sheet = sheet.loc[:, sheet.dtypes != np.float64]
         for index, row in sheet.iterrows():
             for i in range(len(row)):
-                cell = cell_header(i + 1) + str(index + 1)
-                cell_details = name + ": " + cell
-                sheet_handler(list_details, cell_details, path, sheet_count, row[i])
+                temp_row = specialCharReplace(row[i])
+                try:
+                    float(temp_row)
+                    pass
+                except Exception:
+                    cell = cell_header(i + 1) + str(index + 1)
+                    cell_details = name + ": " + cell
+                    sheet_handler(list_details, cell_details, path, sheet_count, row[i])
 
 def xlsb_handler(path):
     sheet_count = len(open_workbook(path).sheets)
@@ -238,17 +280,6 @@ def odt_handler(path):
     list_details = folderName(path)
     for i in allparas:
         sheet_handler(list_details, 1, path, 1, str(i))
-
-
-def pdf_handler1(path, path_doc):
-    list_details = folderName(path_doc)
-    with open(path, 'rb') as pdf_file:
-        read_pdf = PyPDF2.PdfFileReader(pdf_file)
-        number_of_pages = read_pdf.getNumPages()
-        for page_number in range(number_of_pages):  # use xrange in Py2
-            page = read_pdf.getPage(page_number)
-            page_content = page.extractText()
-            sheet_handler(list_details, page_number, path_doc, number_of_pages, page_content)
 
 def msg_handler(path):
     content = str(Message(path).body)
@@ -295,20 +326,6 @@ def folderName(path):
     folder_name = path.split(file_name)[0]
     file_type = path.split(".")[-1]
     return [file_name, index_number, folder_name, file_type]
-
-
-def outputWriterRawDetail(file_name, index_number, folder_name, file_path, file_type, pages, keyword, category, cell):
-    global outputRow
-    worksheet1.write(outputRow, 0, file_name)
-    worksheet1.write(outputRow, 1, index_number)
-    worksheet1.write(outputRow, 2, folder_name)
-    worksheet1.write(outputRow, 3, file_path)
-    worksheet1.write(outputRow, 4, file_type)
-    worksheet1.write(outputRow, 5, pages)
-    worksheet1.write(outputRow, 6, keyword)
-    worksheet1.write(outputRow, 7, category)
-    worksheet1.write(outputRow, 8, cell)
-    outputRow = outputRow + 1
 
 
 # pass the additional parameter for relevance test - dynamically
@@ -594,6 +611,8 @@ def keywordlist():
     for i in category_list:
         temp = df[df["category"] == i]["keyword"].tolist()
         keyword_dic[i] = temp
+    print(keyword_dic)
+
 
 def keyword_extraction():
     try:
@@ -605,10 +624,46 @@ def keyword_extraction():
         print("mysql connection issue")
         sys.exit(1)
 
-# triggering the application
+def multi_processing(i):
+    print("file name ", i)
+    if i.endswith(".csv"):
+        csv_handler(i)
+    elif i.endswith((".xlsb")):
+        xlsb_handler(i)
+    elif i.endswith(".msg"):
+        msg_handler(i)
+    elif i.endswith(".txt"):
+        txt_handler(i)
+    elif i.endswith(".rtf"):
+        rtf_handler(i)
+    elif i.endswith((".docx", ".doc")):
+        print(datetime.datetime.now())
+        doc_handler(i)
+    elif i.endswith(".odt"):
+        odt_handler(i)
+    elif i.endswith((".pptx", "ppt")):
+        print(datetime.datetime.now())
+        ppt_handler(i)
+    elif i.endswith((".PNG", ".png", ".JPEG", ".jpeg", ".JPG", ".jpg", ".gif", ".pnm", ".PNM")):
+        img_handler(i)
+    elif i.endswith((".xlsx", ".xlsm", ".xls", ".XLS")):
+        print(datetime.datetime.now())
+        xlsx_handler(i)
+    elif i.endswith((".pdf", ".PDF")):
+        print(datetime.datetime.now())
+        pdf_handler(i)
+    elif i.endswith(".vsdx"):
+        visio_handler(i)
+    elif i.endswith((".tiff", ".tif", ".jfif", ".bmp", ".vsdx")):
+        tiff_handler(i)
+    else:
+        list_details = folderName(i)
+        #outputWriterRawDetail(list_details[0], list_details[1], list_details[2], i, "Unknown", "", "",
+                             # "", "")
+
 if __name__ == '__main__':
     try:
-        # df = keyword_sql()
+        file_count = 1
         file = open(intermediate_file)
         content = file.read()
         input_dict = ast.literal_eval(content)
@@ -617,7 +672,6 @@ if __name__ == '__main__':
         drl_file_path = input_dict['DRL_Location']
 
         keywordlist()
-        #user_input = df[df["category"] == "User_Input"]["keyword"].values.tolist()
 
         fileList = []
         for path, subdirs, files in os.walk(root):
@@ -625,39 +679,33 @@ if __name__ == '__main__':
                 a = os.path.join(path, name)
                 fileList.append(a)
 
-        for i in fileList:
-            if i.endswith(".csv"):
-                csv_handler(i)
-            elif i.endswith((".xlsx", ".xlsm", ".xls", ".XLS")):
-                xlsx_handler(i)
-            elif i.endswith((".xlsb")):
-                xlsb_handler(i)
-            elif i.endswith(".msg"):
-                msg_handler(i)
-            elif i.endswith(".txt"):
-                txt_handler(i)
-            elif i.endswith(".rtf"):
-                rtf_handler(i)
-            elif i.endswith((".docx", ".doc")):
-                doc_handler(i)
-            elif i.endswith(".odt"):
-                odt_handler(i)
-            elif i.endswith((".pptx", "ppt")):
-                ppt_handler(i)
-            elif i.endswith((".PNG", ".png", ".JPEG", ".jpeg", ".JPG", ".jpg", ".gif", ".pnm", ".PNM")):
-                img_handler(i)
-            elif i.endswith((".pdf", ".PDF")):
-                pdf_handler(i)
-            elif i.endswith(".vsdx"):
-                visio_handler(i)
-            elif i.endswith((".tiff", ".tif", ".jfif", ".bmp", ".vsdx")):
-                tiff_handler(i)
-            else:
-                list_details = folderName(i)
-                outputWriterRawDetail(list_details[0], list_details[1], list_details[2], i, "Unknown", "", "",
-                                      "", "")
+        for file in fileList:
+            multi_processing(file)
 
-        workbook.close()
+        print(len(raw_details_list))
+        raw_dataframe = pd.DataFrame(raw_details_list)
+        with pd.ExcelWriter(output_file, engine='openpyxl', mode='a') as writer:
+            raw_dataframe.to_excel(writer, "Raw Details", index=False)
+            writer.save()
+
+        print(raw_dataframe)
+        wb1 = openpyxl.load_workbook(output_file)
+        ws = wb1['DRL Details']
+        fillBack = PatternFill(start_color="00FFFF00", fill_type="solid")
+
+        ws.column_dimensions['A'].width = 24.94
+        ws.column_dimensions['B'].width = 24.94
+        ws.column_dimensions['C'].width = 24.94
+        ws.column_dimensions['D'].width = 24.94
+        ws.column_dimensions['E'].width = 24.94
+        ws.column_dimensions['F'].width = 24.94
+        ws.column_dimensions['G'].width = 24.94
+        ws.row_dimensions[1].height = 28.8
+
+        for cell in ws["1:1"]:
+            cell.fill = fillBack
+        wb1.save(output_file)
+
         generatingFileLevelDetail(output_file)
         generatingKeywordDetails(output_file)
         generatingDRLDetails(drl_file_path, output_file)
@@ -670,6 +718,9 @@ if __name__ == '__main__':
     except Exception as e:
         logger.info("Fatal error has occured - ", e)
     finally:
+        print(memory_error_files)
+        print(exception_files)
+        print(datetime.datetime.now())
         logger.info("The end")
         logger.info("***********************************NEXT RUN************************************")
         logger.info("*******************************************************************************")
