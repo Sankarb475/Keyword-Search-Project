@@ -35,6 +35,7 @@ import pyocr
 import pyocr.builders
 import numpy as np
 
+#
 tools = pyocr.get_available_tools()
 # create logger
 logger = logging.getLogger('VDR')
@@ -49,7 +50,7 @@ outputRow = 1
 memory_error_files = []
 exception_files = []
 keyword_dic = {}
-pattern_list = []
+pattern_list = {}
 raw_details_list = []
 try:
     config = configparser.ConfigParser()
@@ -87,12 +88,16 @@ worksheet1.write('G1', 'Keyword', header_format)
 worksheet1.write('H1', 'IT Category', header_format)
 worksheet1.write('I1', 'Page/Slide Number', header_format)
 
-
+# not used at the moment
+"""
 def specialCharReplace(word):
     if isinstance(word, str):
         return re.sub('[^A-Za-z0-9\s.]+', '', word)
     return word
+"""
 
+# converting numeric value to character equivalent to excel header
+# value 2 equivalent to char B
 def cell_header(a):
     if a <= 26:
         return chr(a + 64)
@@ -101,13 +106,14 @@ def cell_header(a):
     return chr(count) + chr(rest)
 
 
+# processes csv file
 def csv_handler(path):
     with open(path) as csvfile:
         readCSV = csv.reader(csvfile)
+        # count is row number
         count = 0
         page_count = 1
         for row in readCSV:
-            # count is row number
             count = count + 1
             for i in range(len(row)):
                 # print(row[i] + " " + str(count) + " " + str(i))
@@ -116,35 +122,52 @@ def csv_handler(path):
                 cell_details = cell_header(i + 1) + str(count)
                 sheet_handler(list_details, cell_details, path, page_count, row[i])
 
+# checks whether a value is nan
+def isNan(val):
+    return val != val
 
-def pattern(keys):
-    return re.compile('|'.join([r'(?<!\w)%s(?!\w)' % re.escape(keys)]), flags=re.I)
+# processes excel file
+def xlsx_handler(path):
+    try:
+        sheets_dict = pd.read_excel(path, sheet_name=None, header=None)
+        sheet_count = len(sheets_dict)
+        list_details = folderName(path)
+        for name, sheet in sheets_dict.items():
+            # removing columns which are in float format
+            #sheet = sheet.loc[:, sheet.dtypes != np.float64]
+            for index, row in sheet.iterrows():
+                for i in range(len(row)):
+                    cell = cell_header(i + 1) + str(index + 1)
+                    cell_details = name + ": " + cell
+                    sheet_handler(list_details, cell_details, path, sheet_count, row[i])
+    except Exception as e:
+        print("Issue processing xlsx::", e)
+        pass
 
+# method which writes all the output data to a list of dictionary - raw_details_list
 def sheet_handler(list_details, cell_details, path, page_count, row):
     try:
-        global keyword_dic
+        global keyword_dic, pattern_list
         if isinstance(row, str):
-            for category, keywords in keyword_dic.items():
-                for keys in keywords:
-                    r = pattern(keys)
-                    words = r.findall(row)
+            for category, list_of_pattern in pattern_list.items():
+                for index in range(len(list_of_pattern)):
+                    words = list_of_pattern[index].findall(row)
                     for i in words:
-                        print("words", words)
                         temp_dic = {"File Name": list_details[0], "Index Number" : list_details[1],
                                     "Folder Name": list_details[2], "File Path" : path, "File Type": list_details[3],
-                                    "Total Number of Page(s)/Slide(s)": page_count, "Keyword": keys, "IT Category":
+                                    "Total Number of Page(s)/Slide(s)": page_count, "Keyword": keyword_dic[category][index], "IT Category":
                                     category, "Page/Slide Number": cell_details}
                         raw_details_list.append(temp_dic)
-
 
     except Exception as e:
         print("Error while writing to RAW details", e)
         sys.exit(1)
 
-
+# removes unneccessary spaces from extracted texts from images
 def removal(text):
     return text.replace("\\r", " ").replace("\\n", " ").replace('\\x', " ").replace('0c', " ")
 
+# handles these extensions - ".PNG", ".png", ".JPEG", ".jpeg", ".JPG", ".jpg", ".gif", ".pnm", ".PNM"
 def img_handler(path):
     list_details = folderName(path)
     text = textract.process(path, encoding='ascii', method='tesseract')
@@ -152,6 +175,7 @@ def img_handler(path):
     print(content)
     sheet_handler(list_details, 1, path, 1, content)
 
+# handles visio files
 def visio_handler(path):
     out_file = os.path.join(temp_storage_path, "temp_visio.pdf")
     vpc = Visio2PDFConverter(visio_process_name='visio.exe',
@@ -159,6 +183,7 @@ def visio_handler(path):
                              temp_file_name='visio2pdf4latex_temp', visio_ext_names=['vsdx', 'vsd'])
     vpc.convert('one_visio_file.vsd')
 
+# handles these extensions - ".tiff", ".tif", ".jfif", ".bmp"
 def tiff_handler(path):
     list_details = folderName(path)
     out_file = os.path.join(temp_storage_path, "temp_img.JPEG")
@@ -168,6 +193,7 @@ def tiff_handler(path):
     img_handler_for_pdf(out_file, path, 1, 1, list_details)
     os.remove(out_file)
 
+# coverts the docx to pdf for further processing
 def doc_handler(path):
     #word = comtypes.client.CreateObject('Word.Application')
     wdFormatPDF = 17
@@ -181,6 +207,7 @@ def doc_handler(path):
     pdf_handler_for_doc(out_file, path, list_details)
     os.remove(out_file)
 
+# converts ppt to pdf for further processing
 def ppt_handler(path, formatType = 32):
     powerpoint = win32com.client.DispatchEx("Powerpoint.Application")
     powerpoint.Visible = 1
@@ -193,7 +220,7 @@ def ppt_handler(path, formatType = 32):
     pdf_handler_for_doc(out_file, path, list_details)
     os.remove(out_file)
 
-
+# handles pdfs which has been converted from docx and ppts
 def pdf_handler_for_doc(pdf_path, path, list_details):
     #convertedpdf = pdf2image.convert_from_path(file,dpi=200,grayscale=False,poppler_path="C:/bin/",output_folder=savepath,fmt='jpg')
     #pages = convert_from_path(pdf_path, 500)
@@ -210,6 +237,7 @@ def pdf_handler_for_doc(pdf_path, path, list_details):
         print("error", e)
         pass
 
+# extracts images out of scanned pdfs
 def pdf_handler(path):
     try:
         pages = convert_from_path(path, 120)
@@ -226,6 +254,7 @@ def pdf_handler(path):
         print("error", e)
         pass
 
+# handles images converted from pdfs which in turn is converted from docx and ppts
 def img_handler_for_pdf(temp_path, path, page_number ,total_pages, list_details):
     try:
         #text = textract.process(temp_path, encoding="ascii",  errors='ignore', method='tesseract')
@@ -240,24 +269,7 @@ def img_handler_for_pdf(temp_path, path, page_number ,total_pages, list_details)
         exception_files.append(path)
         pass
 
-def xlsx_handler(path):
-    sheets_dict = pd.read_excel(path, sheet_name=None, header=None)
-    sheet_count = len(sheets_dict)
-    list_details = folderName(path)
-    for name, sheet in sheets_dict.items():
-        # removing columns which has float values
-        sheet = sheet.loc[:, sheet.dtypes != np.float64]
-        for index, row in sheet.iterrows():
-            for i in range(len(row)):
-                temp_row = specialCharReplace(row[i])
-                try:
-                    float(temp_row)
-                    pass
-                except Exception:
-                    cell = cell_header(i + 1) + str(index + 1)
-                    cell_details = name + ": " + cell
-                    sheet_handler(list_details, cell_details, path, sheet_count, row[i])
-
+# handles xlsb files
 def xlsb_handler(path):
     sheet_count = len(open_workbook(path).sheets)
     list_details = folderName(path)
@@ -274,6 +286,7 @@ def xlsb_handler(path):
                             sheet_handler(list_details, cell_details, path, sheet_count, row[i].v)
 
 
+# odt file handler
 def odt_handler(path):
     textdoc = load(path)
     allparas = textdoc.getElementsByType(text.P)
@@ -281,6 +294,7 @@ def odt_handler(path):
     for i in allparas:
         sheet_handler(list_details, 1, path, 1, str(i))
 
+# processes msg files
 def msg_handler(path):
     content = str(Message(path).body)
     sub = str(Message(path).subject)
@@ -288,7 +302,7 @@ def msg_handler(path):
     sheet_handler(list_details, 1, path, 1, content)
     sheet_handler(list_details, 1, path, 1, sub)
 
-
+# processes text files
 def txt_handler(path):
     list_details = folderName(path)
     file = open(path, mode='r')
@@ -296,7 +310,7 @@ def txt_handler(path):
     sheet_handler(list_details, 1, path, 1, content)
     file.close()
 
-
+#processes rtf files
 def rtf_handler(path):
     list_details = folderName(path)
     file = open(path, mode='r')
@@ -305,7 +319,7 @@ def rtf_handler(path):
     sheet_handler(list_details, 1, path, 1, content)
     file.close()
 
-
+# extracts index number from file name
 def index_number_verification(index):
     r = re.compile('[@_!#$%^&*()<>?/\|}{~:]')
     if (index.isupper() or index.islower()) or r.search(index) != None:
@@ -317,7 +331,7 @@ def index_number_verification(index):
         index = re.sub('[.]', " ", index)
     return index
 
-
+# generates file details
 def folderName(path):
     # C:\Users\sb512911\Desktop\All\Screenshots\1.2.1 ILS Structure Chart.csv
     file_name = path.split("\\")[-1]
@@ -329,6 +343,7 @@ def folderName(path):
 
 
 # pass the additional parameter for relevance test - dynamically
+# generates file level details sheet from "Raw Details"
 def generatingFileLevelDetail(file_path):
     try:
         data = pd.read_excel(open(file_path, 'rb'), sheet_name=0)
@@ -374,37 +389,14 @@ def generatingFileLevelDetail(file_path):
             temp_df = pd.DataFrame([temp_dict])
             unknown_files = cross_join(temp_data_unknown, temp_df)
             file_level_detail = file_level_detail.append(unknown_files, ignore_index=True)
-            writer = pd.ExcelWriter(output_file)
-            with pd.ExcelWriter(output_file, engine='openpyxl', mode='a') as writer:
-                file_level_detail.to_excel(writer, "File Level Detail", index=False)
-            writer.save()
-
-            wb1 = openpyxl.load_workbook(output_file)
-            ws = wb1['File Level Detail']
-            fillBack = PatternFill(start_color="00FFFF00", fill_type="solid")
-
-            ws.column_dimensions['A'].width = 24.94
-            ws.column_dimensions['B'].width = 24.94
-            ws.column_dimensions['C'].width = 24.94
-            ws.column_dimensions['D'].width = 24.94
-            ws.column_dimensions['E'].width = 24.94
-            ws.column_dimensions['F'].width = 24.94
-            ws.column_dimensions['G'].width = 24.94
-            ws.column_dimensions['H'].width = 24.94
-            ws.column_dimensions['I'].width = 24.94
-            ws.column_dimensions['J'].width = 24.94
-            ws.column_dimensions['K'].width = 24.94
-            ws.row_dimensions[1].height = 28.8
-
-            for cell in ws["1:1"]:
-                cell.fill = fillBack
-            wb1.save(output_file)
+            writing_to_excel(file_level_detail, "File Level Detail", "a")
 
     except:
         print("error occured while generating file level detail")
         sys.exit(1)
 
 
+# generates keyword detail output sheet sheet
 def generatingKeywordDetails(file_path):
     data = pd.read_excel(open(file_path, 'rb'), sheet_name="Raw Details")
     try:
@@ -471,34 +463,13 @@ def generatingKeywordDetails(file_path):
                                                "All file(s) with keyword hits", "Index Number(s)", "File Path(s)"]]
 
             # writing to "File Level Detail" sheet
-            with pd.ExcelWriter(output_file, engine='openpyxl', mode='a') as writer:
-                keyword_details.to_excel(writer, "Keyword Details", index=False)
-            writer.save()
-
-            wb1 = openpyxl.load_workbook(output_file)
-            ws = wb1['Keyword Details']
-            fillBack = PatternFill(start_color="00FFFF00", fill_type="solid")
-
-            ws.column_dimensions['A'].width = 24.94
-            ws.column_dimensions['B'].width = 24.94
-            ws.column_dimensions['C'].width = 24.94
-            ws.column_dimensions['D'].width = 24.94
-            ws.column_dimensions['E'].width = 24.94
-            ws.column_dimensions['F'].width = 24.94
-            ws.column_dimensions['G'].width = 24.94
-            ws.column_dimensions['H'].width = 24.94
-            ws.column_dimensions['I'].width = 24.94
-            ws.row_dimensions[1].height = 28.8
-
-            for cell in ws["1:1"]:
-                cell.fill = fillBack
-            wb1.save(output_file)
+            writing_to_excel(keyword_details, "Keyword Details", "a")
 
     except Exception as e:
         print("Error occured while generating Keyword details", e)
         sys.exit(1)
 
-
+# handles DRL file and writes to DRL Details sheet
 def generatingDRLDetails(drl_path, output_path):
     df = pd.read_excel(output_path, sheet_name="Raw Details")
     data = df[df["File Type"] != "Unknown"][["File Name", "Index Number", "File Path", "Keyword"]].drop_duplicates()
@@ -569,12 +540,16 @@ def generatingDRLDetails(drl_path, output_path):
             ["DRL #", "Request", "Relevant Files Found?", "Number of relevant files", "File Name(s)", "Index Number(s)",
              "File Path(s)"]]
     # writing to "File Level Detail" sheet
-    with pd.ExcelWriter(output_file, engine='openpyxl', mode='a') as writer:
-        dataframe.to_excel(writer, "DRL Details", index=False)
+    writing_to_excel(dataframe, "DRL Details", "a")
+
+# writes, formats, colours the final output file
+def writing_to_excel(dataframe, sheet_name, mode):
+    with pd.ExcelWriter(output_file, engine='openpyxl', mode=mode) as writer:
+        dataframe.to_excel(writer, sheet_name, index=False)
         writer.save()
 
     wb1 = openpyxl.load_workbook(output_file)
-    ws = wb1['DRL Details']
+    ws = wb1[sheet_name]
     fillBack = PatternFill(start_color="00FFFF00", fill_type="solid")
 
     ws.column_dimensions['A'].width = 24.94
@@ -590,30 +565,25 @@ def generatingDRLDetails(drl_path, output_path):
         cell.fill = fillBack
     wb1.save(output_file)
 
-def keyword_sql():
-    try:
-        db_connection_str = 'mysql+pymysql://root:admin@localhost/virtual_data_room'
-        db_connection = create_engine(db_connection_str)
-        df = pd.read_sql('SELECT keyword, category FROM additional_data_dictionary', con=db_connection)
-        return df.drop_duplicates()
-    except:
-        print("mysql connection issue - ignoring the user input")
-        sys.exit(1)
-
-
+# does a cross join in python
 def cross_join(left, right):
     return left.assign(key=1).merge(right.assign(key=1), on='key').drop('key', 1)
 
+# creates regex pattern for each keyword
+def pattern(keys):
+    return re.compile('|'.join([r'(?<!\w)%s(?!\w)' % re.escape(keys)]), flags=re.I)
+
+# creating a dictionary of lists containing the regex pattern for each keyword
 def keywordlist():
-    global keyword_dic
+    global keyword_dic, pattern_list
     df = keyword_extraction()
     category_list = df["category"].drop_duplicates().tolist()
     for i in category_list:
         temp = df[df["category"] == i]["keyword"].tolist()
         keyword_dic[i] = temp
-    print(keyword_dic)
+        pattern_list[i] = [pattern(key) for key in temp]
 
-
+# extracts the data dictionary from mysql table - data_dictionary.virtual_data_room
 def keyword_extraction():
     try:
         db_connection_str = 'mysql+pymysql://root:admin@localhost/virtual_data_room'
@@ -654,24 +624,33 @@ def multi_processing(i):
         pdf_handler(i)
     elif i.endswith(".vsdx"):
         visio_handler(i)
-    elif i.endswith((".tiff", ".tif", ".jfif", ".bmp", ".vsdx")):
+    elif i.endswith((".tiff", ".tif", ".jfif", ".bmp")):
         tiff_handler(i)
     else:
+        # files which are having extension other than the above ones, will be declared Unknown
         list_details = folderName(i)
-        #outputWriterRawDetail(list_details[0], list_details[1], list_details[2], i, "Unknown", "", "",
-                             # "", "")
+        temp_dic = {"File Name": list_details[0], "Index Number": list_details[1],
+                    "Folder Name": list_details[2], "File Path": i, "File Type": "Unknown",
+                    "Total Number of Page(s)/Slide(s)": "", "Keyword": "", "IT Category":
+                    "", "Page/Slide Number": ""}
+        raw_details_list.append(temp_dic)
 
 if __name__ == '__main__':
     try:
-        file_count = 1
+        # intermediate file is the path where we have these details - VDR path, DRL path, additional keyword
         file = open(intermediate_file)
         content = file.read()
         input_dict = ast.literal_eval(content)
 
+
         root = input_dict['VDR_Location']
         drl_file_path = input_dict['DRL_Location']
+        additional_keywords = input_dict["User_Input"]
 
         keywordlist()
+
+        # adding the user given keywords
+        keyword_dic["User Input"] = [pattern(key) for key in additional_keywords]
 
         fileList = []
         for path, subdirs, files in os.walk(root):
@@ -682,29 +661,9 @@ if __name__ == '__main__':
         for file in fileList:
             multi_processing(file)
 
-        print(len(raw_details_list))
+
         raw_dataframe = pd.DataFrame(raw_details_list)
-        with pd.ExcelWriter(output_file, engine='openpyxl', mode='a') as writer:
-            raw_dataframe.to_excel(writer, "Raw Details", index=False)
-            writer.save()
-
-        print(raw_dataframe)
-        wb1 = openpyxl.load_workbook(output_file)
-        ws = wb1['DRL Details']
-        fillBack = PatternFill(start_color="00FFFF00", fill_type="solid")
-
-        ws.column_dimensions['A'].width = 24.94
-        ws.column_dimensions['B'].width = 24.94
-        ws.column_dimensions['C'].width = 24.94
-        ws.column_dimensions['D'].width = 24.94
-        ws.column_dimensions['E'].width = 24.94
-        ws.column_dimensions['F'].width = 24.94
-        ws.column_dimensions['G'].width = 24.94
-        ws.row_dimensions[1].height = 28.8
-
-        for cell in ws["1:1"]:
-            cell.fill = fillBack
-        wb1.save(output_file)
+        writing_to_excel(raw_dataframe, "Raw Details", "o")
 
         generatingFileLevelDetail(output_file)
         generatingKeywordDetails(output_file)
