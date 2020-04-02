@@ -137,7 +137,7 @@ def img_handler(path):
     list_details = folderName(path)
     text = textract.process(path, encoding='ascii', method='tesseract')
     content = removal(str(text))
-    #print(content)
+    print(content)
     sheet_handler(list_details, 1, path, 1, content)
 
 # handles visio files
@@ -290,10 +290,10 @@ def rtf_handler(path):
 # extracts index number from file name
 def index_number_verification(index):
     r = re.compile('[@_!#$%^&*()<>?/\|}{~:]')
-    if (index.isupper() or index.islower()) or r.search(index) != None:
-        return " "
     if "_" in index:
         index = index.split("_")[0]
+    if (index.isupper() or index.islower()) or r.search(index) != None:
+        return " "
     index = re.sub('[^0-9\.\s]+', '', index)
     if len(index) == 1:
         index = re.sub('[.]', " ", index)
@@ -615,6 +615,7 @@ if __name__ == '__main__':
         drl_file_path = input_dict['DRL_Location']
         additional_keywords = input_dict["User_Input"]
 
+
         keywordlist()
 
         # adding the user given keywords
@@ -625,7 +626,7 @@ if __name__ == '__main__':
             for name in files:
                 a = os.path.join(path, name)
                 fileList.append(a)
-
+        print(fileList)
         for file in fileList:
             multi_processing(file)
 
