@@ -26,19 +26,7 @@ import os, sys
 from PIL import Image
 from visio2pdf import Visio2PDFConverter
 import datetime
-import multiprocessing
-import pyocr
-import pyocr.builders
-import numpy as np
 
-# create logger
-logger = logging.getLogger('VDR')
-logging.basicConfig(filename= r'D:\Backend Python\Scripts\logs\example.log',
-                            filemode='a',
-                            format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-                            datefmt='%H:%M:%S',
-                            level=logging.DEBUG)
-logging.warning('is when this event was logged.')
 outputCol = 0
 outputRow = 1
 memory_error_files = []
@@ -49,17 +37,33 @@ raw_details_list = []
 try:
     config = configparser.ConfigParser()
     config.read('properties.ini')
+    config_folder = config['Directories']['config_file']
     output_file = config['Directories']['output_file']
     temp_storage_path = config['Directories']['temp_storage']
     keyword_file = config['Directories']['keyword_file']
     intermediate_file = config['Directories']['intermediate_file']
+    address = config['Mysql']['address']
+    user = config['Mysql']['user']
+    password = config['Mysql']['password']
+    database_name = config['Mysql']['database_name']
+    table_name = config['Mysql']['table_name']
 except KeyError as e:
     print("Config file is empty")
-    logger.critical('Config file is empty - fatal error')
+    #logger.critical('Config file is empty - fatal error')
+    print('Config file is empty - fatal error')
     sys.exit(1)
 except Exception as e:
     print("Check config file", e)
     sys.exit(1)
+
+# create logger
+logger = logging.getLogger('VDR')
+logging.basicConfig(filename= config_folder,
+                                filemode='a',
+                                format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+                                datefmt='%H:%M:%S',
+                                level=logging.DEBUG)
+logging.warning('is when this event was logged.')
 
 # converting numeric value to character equivalent to excel header
 # value 2 equivalent to char B
@@ -303,7 +307,13 @@ def index_number_verification(index):
 def folderName(path):
     # C:\Users\sb512911\Desktop\All\Screenshots\1.2.1 ILS Structure Chart.csv
     file_name = path.split("\\")[-1]
-    index = file_name.split(" ")[0]
+    index = ""
+    list1 = ['1','2','3','4','5','6','7','8','9','0', '.', '_']
+    for i in file_name:
+        if i in list1:
+            index = index + i
+        else:
+            break
     index_number = index_number_verification(index)
     folder_name = path.split(file_name)[0]
     file_type = path.split(".")[-1]
@@ -554,9 +564,11 @@ def keywordlist():
 # extracts the data dictionary from mysql table - data_dictionary.virtual_data_room
 def keyword_extraction():
     try:
-        db_connection_str = 'mysql+pymysql://root:admin@localhost/virtual_data_room'
+        #db_connection_str = 'mysql+pymysql://root:admin@localhost/virtual_data_room'
+        db_connection_str = 'mysql+pymysql://' + user + ":" + password + "@" + address + "/" + database_name
         db_connection = create_engine(db_connection_str)
-        df = pd.read_sql('SELECT keyword, category FROM data_dictionary', con=db_connection)
+        query = 'SELECT keyword, category FROM {}'.format(table_name)
+        df = pd.read_sql(query, con=db_connection)
         return df.drop_duplicates()
     except:
         print("mysql connection issue")
@@ -612,9 +624,13 @@ if __name__ == '__main__':
 
 
         root = input_dict['VDR_Location']
-        drl_file_path = input_dict['DRL_Location']
+        drl_folder = input_dict['DRL_Location']
+        for path, subdirs, files in os.walk(drl_folder):
+            for name in files:
+                a = os.path.join(path, name)
+                drl_file_path = a
+        print(drl_file_path)
         additional_keywords = input_dict["User_Input"]
-
 
         keywordlist()
 
@@ -626,7 +642,7 @@ if __name__ == '__main__':
             for name in files:
                 a = os.path.join(path, name)
                 fileList.append(a)
-        print(fileList)
+
         for file in fileList:
             multi_processing(file)
 
