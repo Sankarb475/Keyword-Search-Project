@@ -15,3 +15,6 @@ Intermediate file:
 
 log file:
 /home/ddvadmin/scripts/File/logs/example.log
+
+
+args = [libreoffice_exec(), '--headless', '--convert-to', 'pdf', '--outdir', folder, source]
