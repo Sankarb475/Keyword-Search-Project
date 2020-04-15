@@ -1,0 +1,17 @@
+Python script ta ache :
+/home/ddvadmin/scripts/deals_v1.py
+
+Requirements.txt in :
+/home/ddvadmin/scripts/requirements.txt
+
+Config file is:
+/home/ddvadmin/scripts/properties.ini
+
+DRL Folder :
+/home/ddvadmin/scripts/File/drl_file
+
+Intermediate file:
+/home/ddvadmin/scripts/File/intermediate_files/data.txt
+
+log file:
+/home/ddvadmin/scripts/File/logs/example.log
