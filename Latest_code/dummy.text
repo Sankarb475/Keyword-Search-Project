@@ -18,3 +18,5 @@ log file:
 
 
 args = [libreoffice_exec(), '--headless', '--convert-to', 'pdf', '--outdir', folder, source]
+
+libreoffice --headless --convert-to pdf file.pptx
