@@ -20,3 +20,11 @@ log file:
 args = [libreoffice_exec(), '--headless', '--convert-to', 'pdf', '--outdir', folder, source]
 
 libreoffice --headless --convert-to pdf file.pptx
+
+
+from docx import Document
+doc = Document(file_path)
+     for i in doc.paragraphs:
+         matches = r.search(i.text)
+         if matches:
+             fullmatches.append(matches.group())
