@@ -5,6 +5,8 @@ Created on Mon Jan 20 12:36:08 2020
 """
 
 #import win32com.client
+import json
+import requests
 import shutil
 import mammoth
 from pptx import Presentation
@@ -611,24 +613,24 @@ def multi_processing(i):
                     "", "Page/Slide Number": ""}
         raw_details_list.append(temp_dic)
 
-def file_details(s3_directory, guid, vdr):
+def file_details(s3_directory, guid, user_folder, folder):
     bucket_name = s3_directory.split("//")[1].split("/")[0]
     try:
         session = Session(aws_access_key_id=access_key,
                           aws_secret_access_key=secret_key)
         s3 = session.resource('s3')
         your_bucket = s3.Bucket(bucket_name)
-        if not os.path.exists(vdr):
-            os.makedirs(vdr)
+        if not os.path.exists(user_folder):
+            os.makedirs(user_folder, exist_ok=True)
         for s3_file in your_bucket.objects.all():
-            if s3_file.key.startswith(guid):
+            if s3_file.key.startswith(guid + folder):
                 path, filename = os.path.split(s3_file.key)
-                path_local = vdr + path
+                path_local = user_folder + path
                 if not os.path.exists(path_local):
                     os.makedirs(path_local)
                 os.chdir(path_local)
                 s3.meta.client.download_file(bucket_name, s3_file.key, filename)
-        return vdr + "/" + guid
+        return user_folder + "/" + guid + folder
 
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == "404":
@@ -637,9 +639,11 @@ def file_details(s3_directory, guid, vdr):
             raise
 
 def upload_to_s3(output_file, bucket, object_name):
-    s3_client = boto3.client('s3')
+    session = Session(aws_access_key_id=access_key,
+                      aws_secret_access_key=secret_key)
+    s3 = session.resource('s3')
     try:
-        s3_client.upload_file(output_file, bucket, object_name)
+        s3.meta.client.upload_file(output_file, bucket, object_name)
     except ClientError as e:
         logging.error(e)
         return False
@@ -654,7 +658,9 @@ if __name__ == '__main__':
         keywords = sys.argv[3]        #"abc1,abc2"
         guid = sys.argv[4]            #2222
         drl_file_path = ""
-        vdr = file_details(root, guid, vdr = "/home/ddvadmin/scripts/File/")
+        vdr = file_details(root, guid, user_folder = "/home/ddvadmin/scripts/File/", folder = "/VDR")
+
+        drl_folder = file_details(drl_folder, guid, user_folder = "/home/ddvadmin/scripts/File/", folder = "/DRL")
         for path, subdirs, files in os.walk(drl_folder):
             for name in files:
                 a = os.path.join(path, name)
@@ -686,7 +692,13 @@ if __name__ == '__main__':
         out = guid + "/output/output.xlsx"
         bucket_name = root.split("//")[1].split("/")[0]
         print(output_file)
-        upload_to_s3(output_file, bucket_name, out)
+        if upload_to_s3(output_file, bucket_name, out):
+            data_set = {"url": out, "guid": guid}
+            json_dump = json.dumps(data_set)
+            url = 'http://172.30.26.82/ProcessEmailRequest/'
+            headers = {'content-type': 'application/json', 'Accept-Charset': 'UTF-8'}
+            result = requests.post(url, data=json_dump, headers=headers)
+
     except KeyError as e:
         print("Either data is not present or column is missing", e)
         logger.critical("Either data is not present or column is missing", e)
