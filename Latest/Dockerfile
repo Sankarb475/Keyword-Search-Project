@@ -1,4 +1,5 @@
 FROM ubuntu:18.04
+MAINTAINER Sankar Biswas
 
 RUN apt-get update \
   && apt-get install -y vim zip unzip wget curl \
